@@ -35,22 +35,14 @@ export class SubstackScraper {
       await page.goto(url, { waitUntil: 'networkidle' });
 
       // Wait for feed to load
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
 
-      // Check if we're logged in
-      const isLoggedIn = await this.checkIfLoggedIn(page);
-      if (!isLoggedIn) {
-        await browser.close();
-        return {
-          articles: [],
-          fetched_at: startTime,
-          source_url: url,
-          error: 'Not authenticated. Please run with --reauth flag to log in.',
-        };
-      }
+      console.log('[DEBUG] Page loaded, URL:', page.url());
 
       // Scroll and collect posts
+      console.log('[DEBUG] Starting to collect posts, target:', postsToScrape);
       const articles = await this.scrollAndCollectPosts(page, postsToScrape);
+      console.log('[DEBUG] Collected articles:', articles.length);
 
       await browser.close();
 
@@ -100,6 +92,7 @@ export class SubstackScraper {
     while (articles.length < targetCount && scrollAttempts < maxScrollAttempts) {
       // Extract posts from current viewport
       const newPosts = await this.extractPostsFromPage(page);
+      console.log(`[DEBUG] Scroll attempt ${scrollAttempts + 1}: found ${newPosts.length} new posts`);
 
       // Add unique posts
       for (const post of newPosts) {
@@ -130,36 +123,60 @@ export class SubstackScraper {
   private async extractPostsFromPage(page: Page): Promise<Article[]> {
     try {
       // Extract post data using page.evaluate
-      // NOTE: Selectors need to be updated based on actual Substack DOM structure
+      // Using selectors discovered from actual Substack DOM
       const posts = await page.evaluate(() => {
-        const postElements = document.querySelectorAll('article, [data-testid="post"], .post-preview');
+        // Find all feed items by looking for the feedItem class pattern
+        const feedItems = document.querySelectorAll('[class*="feedItem"]');
         const extracted: any[] = [];
 
-        postElements.forEach((el) => {
+        feedItems.forEach((el) => {
           try {
-            // Extract title
-            const titleEl = el.querySelector('h2, h3, .post-title, [data-testid="post-title"]');
-            const title = titleEl?.textContent?.trim() || 'Untitled';
+            // Find the post link (links to *.substack.com/p/*)
+            const linkEl = el.querySelector('a[href*=".substack.com/p/"]');
+            if (!linkEl) return;
 
-            // Extract URL
-            const linkEl = el.querySelector('a[href*="substack.com"]');
-            const url = linkEl?.getAttribute('href') || '';
+            const url = linkEl.getAttribute('href') || '';
 
-            // Extract author
-            const authorEl = el.querySelector('.author, [data-testid="author"], .byline');
-            const author = authorEl?.textContent?.trim() || 'Unknown';
+            // The link text often contains "AuthorNameTitle" - try to find separate elements
+            // Look for the author badge
+            const authorBadge = el.querySelector('[data-testid="user-badge"]');
+            const author = authorBadge?.textContent?.trim() || 'Unknown';
 
-            // Extract excerpt/summary
-            const excerptEl = el.querySelector('p, .excerpt, .post-preview-description');
-            const excerpt = excerptEl?.textContent?.trim() || '';
+            // Find title - usually in a larger text element near the link
+            // Try multiple approaches
+            let title = '';
 
-            // Extract date (if available)
-            const dateEl = el.querySelector('time, .date, [data-testid="post-date"]');
-            const dateStr = dateEl?.getAttribute('datetime') || dateEl?.textContent || '';
+            // Approach 1: Look for a heading-like element
+            const headingEl = el.querySelector('h1, h2, h3, [class*="Title"], [class*="title"]');
+            if (headingEl) {
+              title = headingEl.textContent?.trim() || '';
+            }
+
+            // Approach 2: If no heading, get text from the link but remove author name
+            if (!title) {
+              const linkText = linkEl.textContent?.trim() || '';
+              // Try to remove author name from beginning
+              if (author && linkText.startsWith(author)) {
+                title = linkText.substring(author.length).trim();
+              } else {
+                title = linkText;
+              }
+            }
+
+            // Find excerpt/summary - look for paragraph text
+            const excerptEl = el.querySelector('p, [class*="preview"], [class*="excerpt"], [class*="description"]');
+            let excerpt = excerptEl?.textContent?.trim() || '';
+
+            // Clean up excerpt - remove if it's just the title repeated
+            if (excerpt === title) excerpt = '';
+
+            // Find date
+            const timeEl = el.querySelector('time');
+            const dateStr = timeEl?.getAttribute('datetime') || timeEl?.textContent || '';
 
             if (url && title) {
               extracted.push({
-                title,
+                title: title.substring(0, 200),
                 url,
                 author,
                 summary: excerpt.substring(0, 500),

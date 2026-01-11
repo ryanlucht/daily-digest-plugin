@@ -218,14 +218,22 @@ class FeedScraperServer {
     // Load auth state if requested
     let authState = null;
     if (use_auth) {
+      console.log('[DEBUG] Attempting to load auth from:', process.env.AUTH_STATE_DIR);
       authState = await this.authManager.loadAuthState('substack');
+      console.log('[DEBUG] Auth state loaded:', authState ? 'YES' : 'NO');
       if (!authState) {
+        // Include debug info in error
+        const authInfo = await this.authManager.getAuthInfo('substack');
         return {
           content: [
             {
               type: 'text',
               text: JSON.stringify({
                 error: 'No saved authentication for Substack. Please use perform_login tool first.',
+                debug: {
+                  auth_dir: process.env.AUTH_STATE_DIR || 'not set',
+                  auth_info: authInfo,
+                },
               }, null, 2),
             },
           ],
