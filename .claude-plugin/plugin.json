@@ -1,0 +1,35 @@
+{
+  "name": "daily-digest",
+  "version": "0.1.0",
+  "description": "AI-powered daily digest of articles from Substack and Twitter, ranked by your interests",
+  "author": "Ryan Lucht",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ryanlucht/daily-digest-plugin"
+  },
+  "keywords": [
+    "digest",
+    "rss",
+    "substack",
+    "twitter",
+    "content-curation",
+    "ai-ranking"
+  ],
+  "commands": [
+    {
+      "name": "daily-digest",
+      "description": "Generate AI-ranked daily digest from your feeds",
+      "file": "commands/daily-digest.md"
+    }
+  ],
+  "mcpServers": {
+    "feed-scraper": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/feed-scraper/dist/index.js"],
+      "env": {
+        "AUTH_STATE_DIR": "${CLAUDE_PLUGIN_ROOT}/auth"
+      }
+    }
+  }
+}
