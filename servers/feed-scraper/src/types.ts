@@ -8,7 +8,7 @@ export interface Article {
   author: string;
   date: Date;
   summary: string;
-  source: 'substack' | 'twitter';
+  source: 'substack';
   full_text?: string;
 }
 
@@ -25,7 +25,7 @@ export interface AuthState {
 }
 
 export interface ServiceConfig {
-  service: 'substack' | 'twitter';
+  service: 'substack';
   auth_required: boolean;
   login_url?: string;
   test_url?: string;

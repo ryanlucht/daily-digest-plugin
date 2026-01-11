@@ -1,7 +1,7 @@
 /**
  * Authentication Manager
  *
- * Handles persistent browser authentication state for Substack and Twitter
+ * Handles persistent browser authentication state for Substack
  */
 
 import { readFile, writeFile, mkdir, access } from 'fs/promises';
@@ -29,14 +29,14 @@ export class AuthManager {
   /**
    * Get the path to the auth state file for a service
    */
-  private getAuthFilePath(service: 'substack' | 'twitter'): string {
+  private getAuthFilePath(service: 'substack'): string {
     return join(this.authDir, `${service}.json`);
   }
 
   /**
    * Save authentication state for a service
    */
-  async saveAuthState(service: 'substack' | 'twitter', state: AuthState): Promise<void> {
+  async saveAuthState(service: 'substack', state: AuthState): Promise<void> {
     await this.ensureAuthDir();
     const filePath = this.getAuthFilePath(service);
     const data = {
@@ -50,7 +50,7 @@ export class AuthManager {
   /**
    * Load authentication state for a service
    */
-  async loadAuthState(service: 'substack' | 'twitter'): Promise<AuthState | null> {
+  async loadAuthState(service: 'substack'): Promise<AuthState | null> {
     try {
       const filePath = this.getAuthFilePath(service);
       const content = await readFile(filePath, 'utf-8');
@@ -65,7 +65,7 @@ export class AuthManager {
   /**
    * Check if authentication state exists for a service
    */
-  async hasAuthState(service: 'substack' | 'twitter'): Promise<boolean> {
+  async hasAuthState(service: 'substack'): Promise<boolean> {
     try {
       const filePath = this.getAuthFilePath(service);
       await access(filePath);
@@ -78,7 +78,7 @@ export class AuthManager {
   /**
    * Delete authentication state for a service
    */
-  async deleteAuthState(service: 'substack' | 'twitter'): Promise<void> {
+  async deleteAuthState(service: 'substack'): Promise<void> {
     try {
       const filePath = this.getAuthFilePath(service);
       const { unlink } = await import('fs/promises');
@@ -91,19 +91,13 @@ export class AuthManager {
   /**
    * Get service configuration
    */
-  getServiceConfig(service: 'substack' | 'twitter'): ServiceConfig {
+  getServiceConfig(service: 'substack'): ServiceConfig {
     const configs: Record<string, ServiceConfig> = {
       substack: {
         service: 'substack',
         auth_required: false, // Optional for public feeds
         login_url: 'https://substack.com/sign-in',
         test_url: 'https://substack.com/profile',
-      },
-      twitter: {
-        service: 'twitter',
-        auth_required: true, // Always required
-        login_url: 'https://twitter.com/i/flow/login',
-        test_url: 'https://twitter.com/home',
       },
     };
 
@@ -116,7 +110,7 @@ export class AuthManager {
    * Note: This is a placeholder. Full implementation with Playwright
    * browser testing will be added when integrating with the command.
    */
-  async testAuthentication(service: 'substack' | 'twitter'): Promise<boolean> {
+  async testAuthentication(service: 'substack'): Promise<boolean> {
     const hasState = await this.hasAuthState(service);
     if (!hasState) {
       return false;
@@ -130,7 +124,7 @@ export class AuthManager {
   /**
    * Get authentication info summary
    */
-  async getAuthInfo(service: 'substack' | 'twitter'): Promise<any> {
+  async getAuthInfo(service: 'substack'): Promise<any> {
     const hasState = await this.hasAuthState(service);
     const config = this.getServiceConfig(service);
 

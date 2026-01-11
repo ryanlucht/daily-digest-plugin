@@ -1,11 +1,11 @@
 # Daily Digest Plugin for Claude Code
 
-AI-powered daily digest that curates and ranks articles from your Substack feeds and Twitter/X lists based on your interests.
+AI-powered daily digest that curates and ranks articles from your Substack feeds based on your interests.
 
 ## Features
 
 - 🤖 **AI-Powered Ranking**: Claude holistically evaluates each article based on your interest profile
-- 📰 **Multi-Source**: Aggregates content from Substack feeds and Twitter/X lists
+- 📰 **Substack Integration**: Aggregates content from Substack feeds using browser automation
 - 🔐 **Persistent Authentication**: Login once, authenticated sessions persist across runs
 - 📅 **Daily Automation**: Schedule with cron for automatic daily digests
 - 📝 **Markdown Output**: Clean, readable digest files with top 5 articles
@@ -55,20 +55,18 @@ areas_of_focus:
 
 ### 2. Configure Your Sources
 
-Edit `config/sources.yaml` with your Substack feeds and Twitter lists:
+Edit `config/sources.yaml` with your Substack feed URL:
 
 ```yaml
 sources:
   substack:
-    - url: "https://example.substack.com/feed"
-      name: "Example Newsletter"
-      requires_auth: false
-
-  twitter:
-    - url: "https://twitter.com/i/lists/123456789"
-      name: "Tech Leaders"
+    - url: "https://substack.com/home"
+      name: "Substack For You Feed"
       requires_auth: true
+      posts_to_scrape: 40
 ```
+
+**Note**: The plugin scrapes your personalized "For You" feed at https://substack.com/home, which requires authentication.
 
 ### 3. Run Your First Digest
 
@@ -112,7 +110,7 @@ claude /daily-digest
 # Test configuration without saving
 claude /daily-digest --test
 
-# Re-authenticate with Twitter/Substack
+# Re-authenticate with Substack
 claude /daily-digest --reauth
 ```
 

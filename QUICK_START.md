@@ -1,44 +1,39 @@
-# Quick Start After Restart
+# Quick Start Guide
 
-## 1️⃣ Exit Current Session
+## Overview
+
+The daily digest plugin is now operational for Substack feed scraping. Phase 4.5 is complete!
+
+## Current Status
+
+✅ **Completed**:
+- MCP server setup
+- Substack authentication
+- Feed scraping with working DOM selectors
+- Successfully extracting 40 posts from Substack "For You" feed
+
+🚧 **Next Steps** (Phase 5+):
+- AI-powered ranking algorithm
+- Digest generation
+- Command orchestration
+
+## Testing Substack Scraping
+
+To test the existing functionality:
+
 ```bash
-exit
+# In Claude Code conversation:
+"Test fetch_substack_feed with 10 posts"
 ```
 
-## 2️⃣ Restart Claude Code
-```bash
-claude
-```
+This will:
+1. Load your saved Substack authentication
+2. Open Substack "For You" feed
+3. Scroll and extract articles
+4. Return structured data
 
-## 3️⃣ Resume Conversation
-```bash
-/resume
-```
+## Architecture Notes
 
-## 4️⃣ Start Testing
-Say: **"Let's continue with Phase 4.5 testing. Start with authentication."**
+**Twitter/X Removed**: Twitter actively blocks Playwright automation, so it was removed from scope. The plugin now focuses exclusively on Substack.
 
----
-
-## What Claude Will Do
-
-1. ✅ Verify MCP tools are loaded
-2. 🔐 Authenticate you with Substack (browser will open)
-3. 🔐 Authenticate you with Twitter (browser will open)
-4. 🧪 Test scraping with 5 Substack posts
-5. 🧪 Test scraping with 10 Twitter posts
-6. 🐛 Debug and fix any issues with DOM selectors
-
----
-
-## Expected Issues
-
-**DOM selectors will likely fail** - this is normal! Claude will:
-- Enable headless:false to watch browser
-- Inspect actual HTML structure
-- Update selectors in code
-- Rebuild and retest
-
----
-
-**See HANDOFF.md for full details**
+**For full details**, see HANDOFF.md

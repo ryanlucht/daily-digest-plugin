@@ -3,7 +3,7 @@
 /**
  * Feed Scraper MCP Server
  *
- * Provides tools for fetching content from Substack feeds and Twitter lists,
+ * Provides tools for fetching content from Substack feeds
  * with support for persistent authentication.
  */
 
@@ -15,7 +15,6 @@ import {
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import { SubstackScraper } from './substack.js';
-import { TwitterScraper } from './twitter.js';
 import { AuthManager } from './auth-manager.js';
 
 // Tool definitions
@@ -46,39 +45,14 @@ const TOOLS: Tool[] = [
     },
   },
   {
-    name: 'fetch_twitter_timeline',
-    description: 'Fetch tweets from Twitter timeline using browser automation',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description: 'URL of the Twitter timeline (default: https://twitter.com/home)',
-          default: 'https://twitter.com/home',
-        },
-        posts_to_scrape: {
-          type: 'number',
-          description: 'Number of tweets to scrape from timeline',
-          default: 100,
-        },
-        use_auth: {
-          type: 'boolean',
-          description: 'Whether to use saved authentication state',
-          default: true,
-        },
-      },
-      required: ['url'],
-    },
-  },
-  {
     name: 'save_auth_state',
-    description: 'Save browser authentication state for a service',
+    description: 'Save browser authentication state for Substack',
     inputSchema: {
       type: 'object',
       properties: {
         service: {
           type: 'string',
-          enum: ['substack', 'twitter'],
+          enum: ['substack'],
           description: 'Service to save authentication for',
         },
         state: {
@@ -91,13 +65,13 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'load_auth_state',
-    description: 'Load saved authentication state for a service',
+    description: 'Load saved authentication state for Substack',
     inputSchema: {
       type: 'object',
       properties: {
         service: {
           type: 'string',
-          enum: ['substack', 'twitter'],
+          enum: ['substack'],
           description: 'Service to load authentication for',
         },
       },
@@ -106,13 +80,13 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'test_authentication',
-    description: 'Test if saved authentication is still valid',
+    description: 'Test if Substack authentication is still valid',
     inputSchema: {
       type: 'object',
       properties: {
         service: {
           type: 'string',
-          enum: ['substack', 'twitter'],
+          enum: ['substack'],
           description: 'Service to test authentication for',
         },
       },
@@ -121,13 +95,13 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'perform_login',
-    description: 'Perform interactive login for a service (opens browser window)',
+    description: 'Perform interactive Substack login (opens browser window)',
     inputSchema: {
       type: 'object',
       properties: {
         service: {
           type: 'string',
-          enum: ['substack', 'twitter'],
+          enum: ['substack'],
           description: 'Service to log in to',
         },
       },
@@ -142,7 +116,6 @@ const TOOLS: Tool[] = [
 class FeedScraperServer {
   private server: Server;
   private substackScraper: SubstackScraper;
-  private twitterScraper: TwitterScraper;
   private authManager: AuthManager;
 
   constructor() {
@@ -159,7 +132,6 @@ class FeedScraperServer {
     );
 
     this.substackScraper = new SubstackScraper();
-    this.twitterScraper = new TwitterScraper();
     this.authManager = new AuthManager();
     this.setupHandlers();
   }
@@ -178,9 +150,6 @@ class FeedScraperServer {
         switch (name) {
           case 'fetch_substack_feed':
             return await this.handleFetchSubstackFeed(args);
-
-          case 'fetch_twitter_timeline':
-            return await this.handleFetchTwitterTimeline(args);
 
           case 'save_auth_state':
             return await this.handleSaveAuthState(args);
@@ -253,38 +222,6 @@ class FeedScraperServer {
     };
   }
 
-  private async handleFetchTwitterTimeline(args: any) {
-    const { url = 'https://twitter.com/home', posts_to_scrape = 100, use_auth = true } = args;
-
-    // Load auth state if requested
-    let authState = null;
-    if (use_auth) {
-      authState = await this.authManager.loadAuthState('twitter');
-      if (!authState) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                error: 'No saved authentication for Twitter. Please use perform_login tool first.',
-              }, null, 2),
-            },
-          ],
-        };
-      }
-    }
-
-    const result = await this.twitterScraper.fetchList(url, posts_to_scrape, authState);
-
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(result, null, 2),
-        },
-      ],
-    };
-  }
 
   private async handleSaveAuthState(args: any) {
     const { service, state } = args;
@@ -293,8 +230,8 @@ class FeedScraperServer {
       throw new Error('service and state parameters are required');
     }
 
-    if (service !== 'substack' && service !== 'twitter') {
-      throw new Error('service must be "substack" or "twitter"');
+    if (service !== 'substack') {
+      throw new Error('service must be "substack"');
     }
 
     await this.authManager.saveAuthState(service, state);
@@ -320,8 +257,8 @@ class FeedScraperServer {
       throw new Error('service parameter is required');
     }
 
-    if (service !== 'substack' && service !== 'twitter') {
-      throw new Error('service must be "substack" or "twitter"');
+    if (service !== 'substack') {
+      throw new Error('service must be "substack"');
     }
 
     const authInfo = await this.authManager.getAuthInfo(service);
@@ -343,8 +280,8 @@ class FeedScraperServer {
       throw new Error('service parameter is required');
     }
 
-    if (service !== 'substack' && service !== 'twitter') {
-      throw new Error('service must be "substack" or "twitter"');
+    if (service !== 'substack') {
+      throw new Error('service must be "substack"');
     }
 
     const isValid = await this.authManager.testAuthentication(service);
@@ -371,18 +308,12 @@ class FeedScraperServer {
       throw new Error('service parameter is required');
     }
 
-    if (service !== 'substack' && service !== 'twitter') {
-      throw new Error('service must be "substack" or "twitter"');
+    if (service !== 'substack') {
+      throw new Error('service must be "substack"');
     }
 
     try {
-      let authState;
-
-      if (service === 'substack') {
-        authState = await this.substackScraper.performLogin();
-      } else {
-        authState = await this.twitterScraper.performLogin();
-      }
+      const authState = await this.substackScraper.performLogin();
 
       // Save the auth state
       await this.authManager.saveAuthState(service, authState);
