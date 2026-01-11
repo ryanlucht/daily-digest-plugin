@@ -1,48 +1,58 @@
 /**
- * Substack feed scraper
+ * Substack "For You" feed scraper using Playwright
  */
 
-import { XMLParser } from 'fast-xml-parser';
-import { Article, FeedResult } from './types.js';
+import { chromium, Browser, Page, BrowserContext } from 'playwright';
+import { Article, FeedResult, AuthState } from './types.js';
 
 export class SubstackScraper {
-  private parser: XMLParser;
-
-  constructor() {
-    this.parser = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: '@_',
-    });
-  }
-
   /**
-   * Fetch articles from a Substack RSS feed
+   * Fetch articles from Substack "For You" feed
+   * @param url - Substack feed URL (https://substack.com/home)
+   * @param postsToScrape - Number of posts to load
+   * @param authState - Saved authentication state
    */
   async fetchFeed(
     url: string,
-    hours: number = 24,
-    useAuth: boolean = false
+    postsToScrape: number = 40,
+    authState?: AuthState | null
   ): Promise<FeedResult> {
     const startTime = new Date();
-    const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000);
+    let browser: Browser | null = null;
 
     try {
-      // Fetch the RSS feed
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-        },
-      });
+      // Launch browser
+      browser = await chromium.launch({ headless: true });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch feed: ${response.status} ${response.statusText}`);
+      // Create context with auth state if available
+      const context = authState
+        ? await browser.newContext({ storageState: authState as any })
+        : await browser.newContext();
+
+      const page = await context.newPage();
+
+      // Navigate to Substack home feed
+      await page.goto(url, { waitUntil: 'networkidle' });
+
+      // Wait for feed to load
+      await page.waitForTimeout(2000);
+
+      // Check if we're logged in
+      const isLoggedIn = await this.checkIfLoggedIn(page);
+      if (!isLoggedIn) {
+        await browser.close();
+        return {
+          articles: [],
+          fetched_at: startTime,
+          source_url: url,
+          error: 'Not authenticated. Please run with --reauth flag to log in.',
+        };
       }
 
-      const xmlData = await response.text();
-      const parsed = this.parser.parse(xmlData);
+      // Scroll and collect posts
+      const articles = await this.scrollAndCollectPosts(page, postsToScrape);
 
-      // Extract articles from RSS feed
-      const articles = this.parseRSSFeed(parsed, cutoffTime);
+      await browser.close();
 
       return {
         articles,
@@ -50,6 +60,7 @@ export class SubstackScraper {
         source_url: url,
       };
     } catch (error) {
+      if (browser) await browser.close();
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
         articles: [],
@@ -61,169 +72,148 @@ export class SubstackScraper {
   }
 
   /**
-   * Parse RSS/Atom feed data into Article objects
+   * Check if user is logged in
    */
-  private parseRSSFeed(parsed: any, cutoffTime: Date): Article[] {
+  private async checkIfLoggedIn(page: Page): Promise<boolean> {
+    try {
+      // Look for common logged-in indicators
+      // Adjust selectors based on actual Substack HTML structure
+      const profileButton = await page.$('button[aria-label*="profile"], a[href*="/profile"]');
+      return profileButton !== null;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Scroll through feed and collect posts
+   */
+  private async scrollAndCollectPosts(
+    page: Page,
+    targetCount: number
+  ): Promise<Article[]> {
     const articles: Article[] = [];
+    const seenUrls = new Set<string>();
+    let scrollAttempts = 0;
+    const maxScrollAttempts = 50; // Prevent infinite loops
 
-    try {
-      // Handle RSS 2.0 format
-      if (parsed.rss?.channel?.item) {
-        const items = Array.isArray(parsed.rss.channel.item)
-          ? parsed.rss.channel.item
-          : [parsed.rss.channel.item];
+    while (articles.length < targetCount && scrollAttempts < maxScrollAttempts) {
+      // Extract posts from current viewport
+      const newPosts = await this.extractPostsFromPage(page);
 
-        for (const item of items) {
-          const article = this.parseRSSItem(item, cutoffTime);
-          if (article) {
-            articles.push(article);
-          }
+      // Add unique posts
+      for (const post of newPosts) {
+        if (!seenUrls.has(post.url) && articles.length < targetCount) {
+          seenUrls.add(post.url);
+          articles.push(post);
         }
       }
-      // Handle Atom format
-      else if (parsed.feed?.entry) {
-        const entries = Array.isArray(parsed.feed.entry)
-          ? parsed.feed.entry
-          : [parsed.feed.entry];
 
-        for (const entry of entries) {
-          const article = this.parseAtomEntry(entry, cutoffTime);
-          if (article) {
-            articles.push(article);
+      // Scroll down to load more
+      await page.evaluate(() => window.scrollBy(0, window.innerHeight));
+      await page.waitForTimeout(1000); // Wait for content to load
+
+      scrollAttempts++;
+
+      // Break if we haven't found new posts in several attempts
+      if (articles.length === seenUrls.size && scrollAttempts > 5) {
+        break;
+      }
+    }
+
+    return articles.slice(0, targetCount);
+  }
+
+  /**
+   * Extract posts from current page state
+   */
+  private async extractPostsFromPage(page: Page): Promise<Article[]> {
+    try {
+      // Extract post data using page.evaluate
+      // NOTE: Selectors need to be updated based on actual Substack DOM structure
+      const posts = await page.evaluate(() => {
+        const postElements = document.querySelectorAll('article, [data-testid="post"], .post-preview');
+        const extracted: any[] = [];
+
+        postElements.forEach((el) => {
+          try {
+            // Extract title
+            const titleEl = el.querySelector('h2, h3, .post-title, [data-testid="post-title"]');
+            const title = titleEl?.textContent?.trim() || 'Untitled';
+
+            // Extract URL
+            const linkEl = el.querySelector('a[href*="substack.com"]');
+            const url = linkEl?.getAttribute('href') || '';
+
+            // Extract author
+            const authorEl = el.querySelector('.author, [data-testid="author"], .byline');
+            const author = authorEl?.textContent?.trim() || 'Unknown';
+
+            // Extract excerpt/summary
+            const excerptEl = el.querySelector('p, .excerpt, .post-preview-description');
+            const excerpt = excerptEl?.textContent?.trim() || '';
+
+            // Extract date (if available)
+            const dateEl = el.querySelector('time, .date, [data-testid="post-date"]');
+            const dateStr = dateEl?.getAttribute('datetime') || dateEl?.textContent || '';
+
+            if (url && title) {
+              extracted.push({
+                title,
+                url,
+                author,
+                summary: excerpt.substring(0, 500),
+                dateStr,
+              });
+            }
+          } catch (err) {
+            // Skip malformed posts
           }
-        }
-      }
+        });
+
+        return extracted;
+      });
+
+      // Convert to Article objects
+      return posts.map((post: any) => ({
+        title: post.title,
+        url: post.url,
+        author: post.author,
+        date: post.dateStr ? new Date(post.dateStr) : new Date(),
+        summary: post.summary,
+        source: 'substack' as const,
+      }));
     } catch (error) {
-      console.error('Error parsing RSS feed:', error);
-    }
-
-    return articles;
-  }
-
-  /**
-   * Parse a single RSS item
-   */
-  private parseRSSItem(item: any, cutoffTime: Date): Article | null {
-    try {
-      // Parse publication date
-      const pubDate = new Date(item.pubDate || item.published);
-
-      // Filter out articles older than cutoff
-      if (pubDate < cutoffTime) {
-        return null;
-      }
-
-      // Extract author (try multiple fields)
-      const author =
-        item['dc:creator'] ||
-        item.creator ||
-        item.author?.name ||
-        item.author ||
-        'Unknown';
-
-      // Extract summary/description
-      const summary = this.extractTextContent(
-        item.description ||
-        item.summary ||
-        item.content ||
-        item['content:encoded'] ||
-        ''
-      );
-
-      // Extract full text if available
-      const fullText = item['content:encoded']
-        ? this.extractTextContent(item['content:encoded'])
-        : undefined;
-
-      return {
-        title: item.title || 'Untitled',
-        url: item.link || item.guid || '',
-        author: String(author),
-        date: pubDate,
-        summary: this.truncate(summary, 500),
-        source: 'substack',
-        full_text: fullText ? this.truncate(fullText, 5000) : undefined,
-      };
-    } catch (error) {
-      console.error('Error parsing RSS item:', error);
-      return null;
+      console.error('Error extracting posts:', error);
+      return [];
     }
   }
 
   /**
-   * Parse a single Atom entry
+   * Perform login flow for Substack
+   * This opens a visible browser for manual login
    */
-  private parseAtomEntry(entry: any, cutoffTime: Date): Article | null {
-    try {
-      // Parse publication date
-      const pubDate = new Date(entry.published || entry.updated);
+  async performLogin(): Promise<AuthState> {
+    const browser = await chromium.launch({ headless: false });
+    const context = await browser.newContext();
+    const page = await context.newPage();
 
-      // Filter out articles older than cutoff
-      if (pubDate < cutoffTime) {
-        return null;
-      }
+    // Navigate to login page
+    await page.goto('https://substack.com/sign-in');
 
-      // Extract author
-      const author = entry.author?.name || entry.author || 'Unknown';
+    console.log('Please log in to Substack in the browser window...');
+    console.log('Waiting for login to complete (will detect when redirected to home page)...');
 
-      // Extract link
-      let link = entry.link;
-      if (Array.isArray(link)) {
-        link = link.find((l: any) => l['@_rel'] === 'alternate')?.['@_href'] || link[0]?.['@_href'];
-      } else if (typeof link === 'object') {
-        link = link['@_href'];
-      }
+    // Wait for successful login (redirected to home or profile)
+    await page.waitForURL('**/home**', { timeout: 300000 }); // 5 minute timeout
 
-      // Extract summary
-      const summary = this.extractTextContent(
-        entry.summary || entry.content?.['#text'] || entry.content || ''
-      );
+    console.log('Login successful! Saving authentication state...');
 
-      return {
-        title: entry.title || 'Untitled',
-        url: link || entry.id || '',
-        author: String(author),
-        date: pubDate,
-        summary: this.truncate(summary, 500),
-        source: 'substack',
-      };
-    } catch (error) {
-      console.error('Error parsing Atom entry:', error);
-      return null;
-    }
-  }
+    // Save auth state
+    const state = await context.storageState();
 
-  /**
-   * Extract plain text from HTML content
-   */
-  private extractTextContent(html: string): string {
-    if (!html) return '';
+    await browser.close();
 
-    // Remove HTML tags
-    let text = html.replace(/<[^>]*>/g, ' ');
-
-    // Decode HTML entities
-    text = text
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&quot;/g, '"')
-      .replace(/&apos;/g, "'")
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&amp;/g, '&');
-
-    // Clean up whitespace
-    text = text.replace(/\s+/g, ' ').trim();
-
-    return text;
-  }
-
-  /**
-   * Truncate text to a maximum length
-   */
-  private truncate(text: string, maxLength: number): string {
-    if (text.length <= maxLength) {
-      return text;
-    }
-    return text.substring(0, maxLength - 3) + '...';
+    return state as AuthState;
   }
 }

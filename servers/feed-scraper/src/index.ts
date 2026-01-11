@@ -22,47 +22,49 @@ import { AuthManager } from './auth-manager.js';
 const TOOLS: Tool[] = [
   {
     name: 'fetch_substack_feed',
-    description: 'Fetch articles from a Substack RSS feed',
+    description: 'Fetch articles from Substack "For You" feed using browser automation',
     inputSchema: {
       type: 'object',
       properties: {
         url: {
           type: 'string',
-          description: 'URL of the Substack RSS feed',
+          description: 'URL of the Substack feed (default: https://substack.com/home)',
+          default: 'https://substack.com/home',
         },
-        use_auth: {
-          type: 'boolean',
-          description: 'Whether to use saved authentication state',
-          default: false,
-        },
-        hours: {
+        posts_to_scrape: {
           type: 'number',
-          description: 'Only fetch articles from the last N hours',
-          default: 24,
-        },
-      },
-      required: ['url'],
-    },
-  },
-  {
-    name: 'fetch_twitter_list',
-    description: 'Fetch tweets from a Twitter/X list',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        url: {
-          type: 'string',
-          description: 'URL of the Twitter list',
+          description: 'Number of posts to scrape from the feed',
+          default: 40,
         },
         use_auth: {
           type: 'boolean',
           description: 'Whether to use saved authentication state',
           default: true,
         },
-        hours: {
+      },
+      required: ['url'],
+    },
+  },
+  {
+    name: 'fetch_twitter_timeline',
+    description: 'Fetch tweets from Twitter timeline using browser automation',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'URL of the Twitter timeline (default: https://twitter.com/home)',
+          default: 'https://twitter.com/home',
+        },
+        posts_to_scrape: {
           type: 'number',
-          description: 'Only fetch tweets from the last N hours',
-          default: 24,
+          description: 'Number of tweets to scrape from timeline',
+          default: 100,
+        },
+        use_auth: {
+          type: 'boolean',
+          description: 'Whether to use saved authentication state',
+          default: true,
         },
       },
       required: ['url'],
@@ -117,6 +119,21 @@ const TOOLS: Tool[] = [
       required: ['service'],
     },
   },
+  {
+    name: 'perform_login',
+    description: 'Perform interactive login for a service (opens browser window)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        service: {
+          type: 'string',
+          enum: ['substack', 'twitter'],
+          description: 'Service to log in to',
+        },
+      },
+      required: ['service'],
+    },
+  },
 ];
 
 /**
@@ -162,8 +179,8 @@ class FeedScraperServer {
           case 'fetch_substack_feed':
             return await this.handleFetchSubstackFeed(args);
 
-          case 'fetch_twitter_list':
-            return await this.handleFetchTwitterList(args);
+          case 'fetch_twitter_timeline':
+            return await this.handleFetchTwitterTimeline(args);
 
           case 'save_auth_state':
             return await this.handleSaveAuthState(args);
@@ -173,6 +190,9 @@ class FeedScraperServer {
 
           case 'test_authentication':
             return await this.handleTestAuthentication(args);
+
+          case 'perform_login':
+            return await this.handlePerformLogin(args);
 
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -193,13 +213,27 @@ class FeedScraperServer {
   }
 
   private async handleFetchSubstackFeed(args: any) {
-    const { url, use_auth = false, hours = 24 } = args;
+    const { url = 'https://substack.com/home', posts_to_scrape = 40, use_auth = true } = args;
 
-    if (!url) {
-      throw new Error('url parameter is required');
+    // Load auth state if requested
+    let authState = null;
+    if (use_auth) {
+      authState = await this.authManager.loadAuthState('substack');
+      if (!authState) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: 'No saved authentication for Substack. Please use perform_login tool first.',
+              }, null, 2),
+            },
+          ],
+        };
+      }
     }
 
-    const result = await this.substackScraper.fetchFeed(url, hours, use_auth);
+    const result = await this.substackScraper.fetchFeed(url, posts_to_scrape, authState);
 
     return {
       content: [
@@ -211,14 +245,28 @@ class FeedScraperServer {
     };
   }
 
-  private async handleFetchTwitterList(args: any) {
-    const { url, use_auth = true, hours = 24 } = args;
+  private async handleFetchTwitterTimeline(args: any) {
+    const { url = 'https://twitter.com/home', posts_to_scrape = 100, use_auth = true } = args;
 
-    if (!url) {
-      throw new Error('url parameter is required');
+    // Load auth state if requested
+    let authState = null;
+    if (use_auth) {
+      authState = await this.authManager.loadAuthState('twitter');
+      if (!authState) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                error: 'No saved authentication for Twitter. Please use perform_login tool first.',
+              }, null, 2),
+            },
+          ],
+        };
+      }
     }
 
-    const result = await this.twitterScraper.fetchList(url, hours, use_auth);
+    const result = await this.twitterScraper.fetchList(url, posts_to_scrape, authState);
 
     return {
       content: [
@@ -306,6 +354,59 @@ class FeedScraperServer {
         },
       ],
     };
+  }
+
+  private async handlePerformLogin(args: any) {
+    const { service } = args;
+
+    if (!service) {
+      throw new Error('service parameter is required');
+    }
+
+    if (service !== 'substack' && service !== 'twitter') {
+      throw new Error('service must be "substack" or "twitter"');
+    }
+
+    try {
+      let authState;
+
+      if (service === 'substack') {
+        authState = await this.substackScraper.performLogin();
+      } else {
+        authState = await this.twitterScraper.performLogin();
+      }
+
+      // Save the auth state
+      await this.authManager.saveAuthState(service, authState);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: `Successfully logged in to ${service} and saved authentication state`,
+              service,
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              error: errorMessage,
+              service,
+            }, null, 2),
+          },
+        ],
+        isError: true,
+      };
+    }
   }
 
   async run(): Promise<void> {

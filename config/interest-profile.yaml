@@ -1,0 +1,67 @@
+# Ryan's Interest Profile for Daily Digest
+# AI will use this to holistically evaluate and rank articles from Substack and Twitter feeds
+
+profile:
+  name: "Ryan's Daily Digest"
+
+# Core topics (roughly equal priority)
+topics:
+  - name: "Meditation & Contemplative Practice"
+    weight: 10
+    keywords: ["meditation", "mindfulness", "concentration", "equanimity", "sensory clarity", "vipassana", "Buddhism", "contemplative", "spiritual practice"]
+
+  - name: "Experimentation & Knowledge Work"
+    weight: 9
+    keywords: ["experimentation", "empiricism", "learning", "knowledge work", "writing", "communication", "collaboration", "idea formulation"]
+
+  - name: "Humane Technology"
+    weight: 10
+    keywords: ["humane tech", "digital wellbeing", "intentional technology", "human flourishing", "ethical design", "attention economy", "technology criticism"]
+
+  - name: "Health & Wellbeing"
+    weight: 7
+    keywords: ["health", "longevity", "physical health", "80/20 health", "fitness", "sleep", "nutrition", "preventive health"]
+
+  - name: "AI & the Future of Knowledge Work"
+    weight: 6
+    keywords: ["artificial intelligence", "AI", "LLM", "knowledge economy", "wisdom economy", "AI tools", "human-AI collaboration", "augmentation"]
+
+# Deep questions I'm actively exploring
+# Prioritize articles that address these directly
+questions:
+  - "What does it mean to use technology 'skillfully'?"
+  - "How could individuals rethink their relationship with technology from the ground up, being more intentional about cost:benefit tradeoffs? How do we diagnose and address current problems in our consumption?"
+  - "How do we craft new technology that explicitly enables human flourishing? And can we use experimentation to get there?"
+  - "What are the overlaps between mindfulness/spiritual development and technology? How might mindfulness help us use technology more intentionally? And how might technology support or accelerate spiritual development?"
+  - "What meditative practices will help me most efficiently and effectively develop the skills of concentration, sensory clarity, and equanimity?"
+  - "How do I bring mindfulness plus Buddhist ethics into different aspects of daily life? How do I best 'show up'?"
+  - "What does it mean to 'grow up' and 'clean up' in addition to 'waking up'? What is the work required?"
+  - "How do I continue to improve my ability to formulate, communicate, and collaborate on ideas via writing and speaking?"
+  - "How might AI contribute to the 'end of the knowledge economy', and what could a new emergent 'wisdom economy' look like?"
+  - "In what ways does writing parallel or overlap with spiritual practice?"
+  - "What is the most efficient and effective 80/20 approach to physical health and longevity?"
+
+# Specific themes and intersections
+areas_of_focus:
+  - "Intersection of mindfulness and technology use"
+  - "Skillful relationship with AI tools"
+  - "Experimentation as a path to human flourishing"
+  - "Writing as contemplative practice"
+  - "Buddhist ethics in modern life"
+  - "Concentration, sensory clarity, and equanimity development"
+  - "Knowledge economy vs wisdom economy"
+  - "Human-centered AI design"
+  - "Digital minimalism and intentional technology"
+  - "Developmental frameworks (wake up, grow up, clean up)"
+
+# Topics to filter out or deprioritize
+anti_interests:
+  - "cryptocurrency"
+  - "blockchain"
+  - "NFT"
+  - "web3"
+  - "parenting"
+  - "most politics and news"
+  - "investing"
+  - "financial markets"
+  - "celebrity news"

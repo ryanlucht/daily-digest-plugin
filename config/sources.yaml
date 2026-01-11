@@ -1,0 +1,28 @@
+# Content Sources for Daily Digest
+# Scraping configuration for Substack "For You" feed and Twitter timeline
+
+sources:
+  # Substack "For You" Feed
+  # This is the algorithmic feed at https://substack.com/home
+  substack:
+    - url: "https://substack.com/home"
+      name: "Substack For You Feed"
+      requires_auth: true
+      posts_to_scrape: 40
+      scrape_type: "feed"  # Scroll through feed, not individual RSS
+
+  # Twitter/X Timeline
+  # Home timeline with posts from followed accounts and lists
+  twitter:
+    - url: "https://twitter.com/home"
+      name: "Twitter Home Timeline"
+      requires_auth: true
+      posts_to_scrape: 100
+      scrape_type: "timeline"  # Scroll through timeline
+
+# Notes:
+# - Both sources require authentication (login on first run)
+# - Playwright will scroll through the actual feeds to load posts
+# - No "last seen" tracking - articles may be re-evaluated across runs
+# - If you see too many repeats, reduce posts_to_scrape
+# - Scraping 40 Substack posts + 100 tweets takes ~2-3 minutes
