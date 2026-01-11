@@ -16,6 +16,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { SubstackScraper } from './substack.js';
 import { TwitterScraper } from './twitter.js';
+import { AuthManager } from './auth-manager.js';
 
 // Tool definitions
 const TOOLS: Tool[] = [
@@ -125,6 +126,7 @@ class FeedScraperServer {
   private server: Server;
   private substackScraper: SubstackScraper;
   private twitterScraper: TwitterScraper;
+  private authManager: AuthManager;
 
   constructor() {
     this.server = new Server(
@@ -141,6 +143,7 @@ class FeedScraperServer {
 
     this.substackScraper = new SubstackScraper();
     this.twitterScraper = new TwitterScraper();
+    this.authManager = new AuthManager();
     this.setupHandlers();
   }
 
@@ -228,15 +231,26 @@ class FeedScraperServer {
   }
 
   private async handleSaveAuthState(args: any) {
-    // TODO: Implement auth state saving
+    const { service, state } = args;
+
+    if (!service || !state) {
+      throw new Error('service and state parameters are required');
+    }
+
+    if (service !== 'substack' && service !== 'twitter') {
+      throw new Error('service must be "substack" or "twitter"');
+    }
+
+    await this.authManager.saveAuthState(service, state);
+
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
-            status: 'not_implemented',
-            message: 'Auth state saving will be implemented in Phase 3',
-            args,
+            success: true,
+            message: `Authentication state saved for ${service}`,
+            service,
           }, null, 2),
         },
       ],
@@ -244,31 +258,50 @@ class FeedScraperServer {
   }
 
   private async handleLoadAuthState(args: any) {
-    // TODO: Implement auth state loading
+    const { service } = args;
+
+    if (!service) {
+      throw new Error('service parameter is required');
+    }
+
+    if (service !== 'substack' && service !== 'twitter') {
+      throw new Error('service must be "substack" or "twitter"');
+    }
+
+    const authInfo = await this.authManager.getAuthInfo(service);
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            status: 'not_implemented',
-            message: 'Auth state loading will be implemented in Phase 3',
-            args,
-          }, null, 2),
+          text: JSON.stringify(authInfo, null, 2),
         },
       ],
     };
   }
 
   private async handleTestAuthentication(args: any) {
-    // TODO: Implement auth testing
+    const { service } = args;
+
+    if (!service) {
+      throw new Error('service parameter is required');
+    }
+
+    if (service !== 'substack' && service !== 'twitter') {
+      throw new Error('service must be "substack" or "twitter"');
+    }
+
+    const isValid = await this.authManager.testAuthentication(service);
+    const authInfo = await this.authManager.getAuthInfo(service);
+
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
-            status: 'not_implemented',
-            message: 'Auth testing will be implemented in Phase 3',
-            args,
+            service,
+            is_valid: isValid,
+            ...authInfo,
           }, null, 2),
         },
       ],
