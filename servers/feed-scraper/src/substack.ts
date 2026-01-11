@@ -87,33 +87,51 @@ export class SubstackScraper {
     const articles: Article[] = [];
     const seenUrls = new Set<string>();
     let scrollAttempts = 0;
-    const maxScrollAttempts = 50; // Prevent infinite loops
+    const maxScrollAttempts = 200; // Increased to handle many Notes/non-articles
+    let consecutiveEmptyScrolls = 0;
+    const maxConsecutiveEmpty = 10; // Stop after 10 scrolls with no new articles
+
+    console.log(`[DEBUG] Starting to collect ${targetCount} articles...`);
 
     while (articles.length < targetCount && scrollAttempts < maxScrollAttempts) {
+      const previousCount = articles.length;
+
       // Extract posts from current viewport
       const newPosts = await this.extractPostsFromPage(page);
-      console.log(`[DEBUG] Scroll attempt ${scrollAttempts + 1}: found ${newPosts.length} new posts`);
 
       // Add unique posts
+      let addedThisScroll = 0;
       for (const post of newPosts) {
         if (!seenUrls.has(post.url) && articles.length < targetCount) {
           seenUrls.add(post.url);
           articles.push(post);
+          addedThisScroll++;
         }
       }
 
+      console.log(`[DEBUG] Scroll ${scrollAttempts + 1}: Found ${newPosts.length} posts, added ${addedThisScroll} new articles (total: ${articles.length}/${targetCount})`);
+
+      // Track consecutive failures
+      if (articles.length === previousCount) {
+        consecutiveEmptyScrolls++;
+        console.log(`[DEBUG] No new articles found (${consecutiveEmptyScrolls}/${maxConsecutiveEmpty} empty scrolls)`);
+
+        if (consecutiveEmptyScrolls >= maxConsecutiveEmpty) {
+          console.log(`[DEBUG] Stopping: ${maxConsecutiveEmpty} consecutive scrolls with no new articles`);
+          break;
+        }
+      } else {
+        consecutiveEmptyScrolls = 0; // Reset on success
+      }
+
       // Scroll down to load more
-      await page.evaluate(() => window.scrollBy(0, window.innerHeight));
-      await page.waitForTimeout(1000); // Wait for content to load
+      await page.evaluate(() => window.scrollBy(0, window.innerHeight * 1.5));
+      await page.waitForTimeout(1500); // Increased wait time for content to load
 
       scrollAttempts++;
-
-      // Break if we haven't found new posts in several attempts
-      if (articles.length === seenUrls.size && scrollAttempts > 5) {
-        break;
-      }
     }
 
+    console.log(`[DEBUG] Collection complete: ${articles.length} articles after ${scrollAttempts} scrolls`);
     return articles.slice(0, targetCount);
   }
 
