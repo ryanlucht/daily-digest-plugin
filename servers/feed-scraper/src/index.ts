@@ -14,6 +14,8 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
+import { SubstackScraper } from './substack.js';
+import { TwitterScraper } from './twitter.js';
 
 // Tool definitions
 const TOOLS: Tool[] = [
@@ -121,6 +123,8 @@ const TOOLS: Tool[] = [
  */
 class FeedScraperServer {
   private server: Server;
+  private substackScraper: SubstackScraper;
+  private twitterScraper: TwitterScraper;
 
   constructor() {
     this.server = new Server(
@@ -135,6 +139,8 @@ class FeedScraperServer {
       }
     );
 
+    this.substackScraper = new SubstackScraper();
+    this.twitterScraper = new TwitterScraper();
     this.setupHandlers();
   }
 
@@ -184,32 +190,38 @@ class FeedScraperServer {
   }
 
   private async handleFetchSubstackFeed(args: any) {
-    // TODO: Implement Substack feed fetching
+    const { url, use_auth = false, hours = 24 } = args;
+
+    if (!url) {
+      throw new Error('url parameter is required');
+    }
+
+    const result = await this.substackScraper.fetchFeed(url, hours, use_auth);
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            status: 'not_implemented',
-            message: 'Substack feed fetching will be implemented in Phase 2',
-            args,
-          }, null, 2),
+          text: JSON.stringify(result, null, 2),
         },
       ],
     };
   }
 
   private async handleFetchTwitterList(args: any) {
-    // TODO: Implement Twitter list fetching
+    const { url, use_auth = true, hours = 24 } = args;
+
+    if (!url) {
+      throw new Error('url parameter is required');
+    }
+
+    const result = await this.twitterScraper.fetchList(url, hours, use_auth);
+
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify({
-            status: 'not_implemented',
-            message: 'Twitter list fetching will be implemented in Phase 2',
-            args,
-          }, null, 2),
+          text: JSON.stringify(result, null, 2),
         },
       ],
     };
